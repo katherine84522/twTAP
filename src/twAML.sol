@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.22;
 
+import "forge-std/console.sol";
 /*
 
 ████████╗ █████╗ ██████╗ ██╗ ██████╗  ██████╗ █████╗ 
@@ -161,6 +162,7 @@ abstract contract TWAML is FullMath {
      *           twTap: 1, multiplier: 10, cap: 5
      */
     function capCumulativeReward(uint256 _amount, uint256 _multiplier, uint256 _cap) internal pure returns (uint256) {
+        console.log("_amount", _amount);
         uint256 remainder = _amount % _multiplier;
         if (remainder == 0) {
             return _amount;

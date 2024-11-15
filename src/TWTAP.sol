@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity 0.8.22;
+pragma solidity ^0.8.22;
 
 // External
 import {ERC721Enumerable} from "lib/openzeppelin-contracts/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
@@ -9,15 +9,12 @@ import {ERC721} from "lib/openzeppelin-contracts/contracts/token/ERC721/ERC721.s
 import {Pausable} from "lib/openzeppelin-contracts/contracts/utils/Pausable.sol";
 import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {Ownable} from "lib/openzeppelin-contracts/contracts/access/Ownable.sol";
+import "forge-std/console.sol";
 
 // Tapioca
 import {ITwTapMagnitudeMultiplier} from "./IMagnitudeMultiplier.sol";
 import {IPearlmit, PearlmitHandler} from "./PearlmitHandler.sol";
 import {ERC721NftLoader} from "./ERC721NftLoader.sol";
-// import {ICluster} from "tap-utils/interfaces/periph/ICluster.sol";
-// import {ERC721Permit} from "./ERC721Permit.sol";
-// import {ERC721PermitStruct} from "contracts/tokens/ITapToken.sol";
-import {MyERC20Token} from "./MyERC20Token.sol";
 import {TWAML} from "./twAML.sol";
 
 /*
@@ -83,7 +80,7 @@ contract TWTAP is
 {
     using SafeERC20 for IERC20;
 
-    MyERC20Token public erc20;
+    IERC20 public erc20;
 
     /// ===== TWAML ======
     TWAMLPool public twAML; // sglAssetId => twAMLPool
@@ -173,10 +170,10 @@ contract TWTAP is
     error EmergencySweepActivated();
 
     /// =====-------======
-    constructor(address payable _erc20, address _owner)
+    constructor(address _erc20, address _owner)
         ERC721NftLoader("Time Weighted ERC20", "erc20", _owner)
     {
-        erc20 = MyERC20Token(_erc20);
+        erc20 = IERC20(_erc20);
         creation = block.timestamp;
 
         rewardTokens.push(IERC20(address(0x0))); // 0 index is reserved
@@ -418,16 +415,14 @@ contract TWTAP is
         if (lastProcessedWeek != currentWeek()) revert AdvanceWeekFirst();
 
         // Transfer TAP to this contract
-        {
-            bool isErr = erc20.transferFrom(msg.sender, address(this), _amount);
-            // bool isErr = pearlmit.transferFromERC20(msg.sender, address(this), address(tapOFT), _amount);
-            if (isErr) revert NotAuthorized();
-        }
+        console.log("_amount passed to participate", _amount);
+        erc20.safeTransferFrom(_participant, address(this), _amount);
 
         // Copy to memory
         TWAMLPool memory pool = twAML;
 
         uint256 magnitude = computeMagnitude(_duration, lastEpochCumulative);
+        console.log("Magnitude is", magnitude); // Log the magnitude value
 
         // Revert if the lock is x time bigger than the cumulative
         if (magnitude > (lastEpochCumulative * growthCapBps) / 1e4) revert NotValid();
@@ -435,9 +430,16 @@ contract TWTAP is
         bool hasVotingPower;
         {
             uint256 poolTotalDeposited = _snapshotTotalDepositedForSgl();
+            uint256 target = computeTarget(dMIN, dMAX, magnitude, lastEpochCumulative);
+            console.log("Target is", target); // Log the target value
+            console.log("dMIN is", dMIN); // Log dMIN
+            console.log("dMAX is", dMAX); // Log dMAX
+            console.log("REWARD_MULTIPLIER_BRACKET is", REWARD_MULTIPLIER_BRACKET); // Log REWARD_MULTIPLIER_BRACKET
+            console.log("REWARD_CAP_BRACKET is", REWARD_CAP_BRACKET); // Log REWARD_CAP_BRACKET
             multiplier = capCumulativeReward(
                 computeTarget(dMIN, dMAX, magnitude, lastEpochCumulative), REWARD_MULTIPLIER_BRACKET, REWARD_CAP_BRACKET
             );
+            console.log("Multiplier is", multiplier); // Log the multiplier value
             if (multiplier < _minReward) revert MinRewardTooLow();
             hasVotingPower = _amount >= computeMinWeight(poolTotalDeposited + VIRTUAL_TOTAL_AMOUNT, MIN_WEIGHT_FACTOR);
         }
@@ -755,7 +757,7 @@ contract TWTAP is
      * @notice Set the tapOFT address
      */
     function setERC20(address payable _erc20) external onlyOwner {
-        erc20 = MyERC20Token(_erc20);
+        erc20 = IERC20(_erc20);
         emit SetERC20(_erc20);
     }
 
@@ -994,3 +996,5 @@ contract TWTAP is
     //     super._afterTokenTransfer(from, to, firstTokenId, batchSize);
     // }
 }
+
+
